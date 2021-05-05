@@ -34,12 +34,12 @@ class _PRF:
     def __init__(self):
         self.prf = None
     
-    def resample(self, sourcecol, sourcerow, stampsize=(11,11), 
+    def resample(self, sourcecol, sourcerow, stampsize=(13,13), 
                  supersamplefactor = 9):
         """Sample TESS PRF at location within TPF
         
-        sourcex (float): col position of star (relative to TPF)
-        sourcey (float): row position of star (relative to TPF)
+        sourcecol (float): col position of star (relative to TPF)
+        sourcerow (float): row position of star (relative to TPF)
         stampsize (int,int): (height,width) of TPF
         supersamplefactor (int): interpolate supersampled before downsampling (default 9)
         """
@@ -59,7 +59,7 @@ class _PRF:
         #Supersample the stamp, then downsample
         supercol = (np.arange(stampsize[1]*supersamplefactor) + 0.5) / supersamplefactor
         superrow = (np.arange(stampsize[0]*supersamplefactor) + 0.5) / supersamplefactor
-
+        
         #Interpolate PRF values onto supersampled stamp pixels
         interppix = RectBivariateSpline(relprfrow,relprfcol,self.prf)
         interped = interppix(superrow,supercol) #Interpolate
@@ -128,12 +128,16 @@ class TESS_PRF(_PRF):
         cols = np.array([int(file[-9:-5]) for file in filelist])
         rows = np.array([int(file[-17:-13]) for file in filelist])
 
-        #Bilinear interpolation between four nearest PRFs
+        #Bilinear interpolation between four surrounding PRFs
+        LL = np.where((rows < rownum) & (cols < colnum))[0] #lower left
+        LR = np.where((rows > rownum) & (cols < colnum))[0] #lower right
+        UL = np.where((rows < rownum) & (cols > colnum))[0] #upper left
+        UR = np.where((rows > rownum) & (cols > colnum))[0] #uppper right
         dist = np.sqrt((rows-rownum)**2. + (cols-colnum)**2.)
-        nearestinds = np.argsort(dist)[:4]
+        surroundinginds = [subset[np.argmin(dist[subset])] for subset in [LL,LR,UL,UR]]
         #Following https://stackoverflow.com/a/8662355
         points = []
-        for ind in nearestinds:
+        for ind in surroundinginds:
             hdulist = fits.open(filelist[ind])
             prf = hdulist[0].data
             points.append((cols[ind],rows[ind],prf))
