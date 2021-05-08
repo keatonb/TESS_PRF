@@ -6,7 +6,7 @@ By default, will access the relevant [PRF files on MAST](https://heasarc.gsfc.na
 This is primarily for understanding how the light from a point source might be distributed given its position in a TESS Target Pixel File (TPF) or [TESScut](https://mast.stsci.edu/tesscut/) postage stamp. Referencing the real TESS PRF models, you'll need to provide the Camera, CCD, and Sector numbers, along with the column and row numbers at approximately the center of your TPF to interpolate a PRF appropriate for that postage stamp.  This package assumes the PRF doesn't change considerably within a small TPF.  You can then position the PRF model by passing the relative row and column location within the TPF to the "resample" method.
 
 ```python
-from TESS_PRF import PRF
+import PRF
 import matplotlib.pyplot as plt
 
 # Suppose the following for a TPF of interest
