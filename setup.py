@@ -24,7 +24,7 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    package_dir={"": "PRF"},
-    packages=setuptools.find_packages(where="PRF"),
+    package_dir={"": "src"},
+    packages=setuptools.find_packages(where="src"),
     python_requires=">=3.6",
 )
