@@ -19,7 +19,7 @@ rownum = 298 #middle of TPF
 prf = PRF.TESS_PRF(cam,ccd,sector,colnum,rownum)
 
 # See what this looks like in the center of an 11x11 TPF
-resampled = prf.resample(5.5, 5.5, (11,11))
+resampled = prf.locate(5.5, 5.5, (11,11))
 
 plt.imshow(resampled)
 plt.show()
@@ -27,7 +27,7 @@ plt.show()
 With this result:
 ![PRF example](https://github.com/keatonb/TESS_PRF/raw/main/example.png)
 
-To generate a Gaussian PRF to reposition with a TPF, call `PRF.Gaussian_PRF(sigma)` where `sigma` is in units of TESS pixels.
+To generate a Gaussian PRF to relocate within a TPF, call `PRF.Gaussian_PRF(sigma)` where `sigma` is in units of TESS pixels.
 
 ### Installation
 TESS_PRF is pip installable with the command `pip install TESS_PRF`
