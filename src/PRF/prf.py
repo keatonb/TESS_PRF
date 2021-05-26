@@ -20,65 +20,8 @@ from astropy.io import fits
 from scipy.interpolate import RectBivariateSpline
 import os
 from glob import glob
-
-class _PRF:
-    """Pixel Response Function base class
     
-    To be inherited by classes
-     - TESS_PRF
-     - Gaussian_PRF
-     
-    resample function positions an oversampled PRF model at a certain location
-    in a TPF, relative to TPF corner.
-    """
-    def __init__(self):
-        self.prf = None
-    
-    def resample(self, sourcecol, sourcerow, stampsize=(13,13), 
-                 supersamplefactor = 9):
-        """Sample TESS PRF at location within TPF
-        
-        sourcecol (float): col position of star (relative to TPF)
-        sourcerow (float): row position of star (relative to TPF)
-        stampsize (int,int): (height,width) of TPF
-        supersamplefactor (int): interpolate supersampled before downsampling (default 9)
-        """
-        #Check that PRF has been initialized
-        if self.prf is None:
-            raise RuntimeError("PRF not available. Instantiate as subclass" 
-                               "(e.g., TESS_PRF, Gaussian_PRF)")
-        
-        #Center PRF on origin
-        prfcol = np.arange(-self.prf.shape[1]/2.+.5,self.prf.shape[1]/2.+.5)
-        prfrow = np.arange(-self.prf.shape[0]/2.+.5,self.prf.shape[0]/2.+.5)
-
-        #Convert to relative locations in TPF
-        relprfcol = prfcol/self.prfnsamp + sourcecol
-        relprfrow = prfrow/self.prfnsamp + sourcerow
-
-        #Supersample the stamp, then downsample
-        supercol = (np.arange(stampsize[1]*supersamplefactor) + 0.5) / supersamplefactor
-        superrow = (np.arange(stampsize[0]*supersamplefactor) + 0.5) / supersamplefactor
-        
-        #Interpolate PRF values onto supersampled stamp pixels
-        interppix = RectBivariateSpline(relprfrow,relprfcol,self.prf)
-        interped = interppix(superrow,supercol) #Interpolate
-
-        #Replace values outside PRF with zeros
-        interped[:,np.where(supercol < np.min(relprfcol))] = 0
-        interped[:,np.where(supercol > np.max(relprfcol))] = 0
-        interped[np.where(superrow < np.min(relprfrow)),:] = 0
-        interped[np.where(superrow > np.max(relprfrow)),:] = 0
-
-        #Downsample to TESS TPF resolution
-        output = np.zeros([int(s/supersamplefactor) for s in interped.shape])
-        for i in range(supersamplefactor):
-            for j in range(supersamplefactor):
-                output += interped[i::supersamplefactor,j::supersamplefactor]
-        output /= supersamplefactor**2.
-        return output
-    
-class TESS_PRF(_PRF):
+class TESS_PRF:
     """TESS Pixel Response Function object
     
     """
@@ -151,7 +94,91 @@ class TESS_PRF(_PRF):
                     q22 * (colnum - x1) * ( rownum - y1)
                     ) / ((x2 - x1) * (y2 - y1) + 0.0)
         
-class Gaussian_PRF(_PRF):
+        ## Need to reshape PRF file for interpolation
+        ## Add models just beyond pixel edges
+        
+        ##Size: 11x11x13x13 
+        #indices: subrow index (from bottom), subcol index (from left),
+        #TPF row index (from bottom), TPF col index (from left),
+        reshaped = np.zeros((11,11,13,13)) 
+        
+        #Un-interleve PRF samples
+        for i in range(9): #col number
+            for j in range(9): #row number
+                reshaped[i+1,j+1,:,:] = self.prf[8-i::9, 8-j::9] #col, row, cols, rows
+        
+        #Add columns just beyond pixel edges
+        for j in range(1,10): #loop over rows
+            reshaped[j,0,:,:] = np.append(reshaped[j,-2,:,1:],np.zeros((13,1)),axis=1)
+            reshaped[j,-1,:,:] = np.append(np.zeros((13,1)),reshaped[j,1,:,:-1],axis=1)
+        
+        #Add rows just beyond pixel edges
+        for i in range(0,11):
+            reshaped[0,i,:,:] = np.append(reshaped[-2,i,1:,:],np.zeros((1,13)),axis=0)
+            reshaped[-1,i,:,:] = np.append(np.zeros((1,13)),reshaped[1,i,:-1,:],axis=0)
+        
+        #Store for later use
+        self.reshaped = reshaped
+        
+    def locate(self, sourcecol, sourcerow, stampsize=(13,13)):
+        """Interpolate TESS PRF at location within "interleaved" TPF
+        
+        sourcecol (float): col position of star (relative to TPF)
+        sourcerow (float): row position of star (relative to TPF)
+        stampsize (int,int): (height,width) of TPF
+        """
+        #Break into integer and fractional pixel
+        colint = np.floor(sourcecol)
+        colfract = sourcecol % 1
+        rowint = np.floor(sourcerow)
+        rowfract = sourcerow % 1
+        
+        #Sub-pixel sample locations (in each dirextion, w/ border added)
+        pixelsamples = np.arange(-1/18,19.1/18,1/9)
+        
+        #Find four surrounding subpixel PRF models
+        colbelow = np.max(np.where(pixelsamples < colfract)[0])
+        colabove = np.min(np.where(pixelsamples >= colfract)[0])
+        rowbelow = np.max(np.where(pixelsamples < rowfract)[0])
+        rowabove = np.min(np.where(pixelsamples >= rowfract)[0])
+        
+        #interpolate
+        points = []
+        LL = self.reshaped[rowbelow,colbelow,:,:]
+        points.append((pixelsamples[colbelow],pixelsamples[rowbelow],LL))
+        UL = self.reshaped[rowabove,colbelow,:,:]
+        points.append((pixelsamples[colbelow],pixelsamples[rowabove],UL))
+        LR = self.reshaped[rowbelow,colabove,:,:]
+        points.append((pixelsamples[colabove],pixelsamples[rowbelow],LR))
+        UR = self.reshaped[rowabove,colabove,:,:]
+        points.append((pixelsamples[colabove],pixelsamples[rowabove],UR))
+    
+        points = sorted(points)
+        (x1, y1, q11), (_x1, y2, q12), (x2, _y1, q21), (_x2, _y2, q22) = points
+        
+        subsampled = (q11 * (x2 - colfract) * (y2 - rowfract) +
+                      q21 * (colfract - x1) * (y2 -  rowfract) +
+                      q12 * (x2 - colfract) * ( rowfract - y1) +
+                      q22 * (colfract - x1) * ( rowfract - y1)
+                      ) / ((x2 - x1) * (y2 - y1) + 0.0)
+        
+        #Now must place at correct location in TPF
+        tpfmodel = np.zeros(stampsize)
+        
+        #PRF models are 13x13 pixels
+        #center of PRF is pixel (6,6)
+        midprf = 6
+        
+        #That pixel should be (colint,rowint) in TPF
+        tpfmodel[int(np.max([0,rowint-midprf])):int(np.min([stampsize[1],rowint+midprf+1])),
+                 int(np.max([0,colint-midprf])):int(np.min([stampsize[0],colint+midprf+1])),] = subsampled[
+            int(np.max([0,midprf-rowint])):int(np.min([2*midprf+1,midprf-rowint+stampsize[1]])),
+            int(np.max([0,midprf-colint])):int(np.min([2*midprf+1,midprf-colint+stampsize[0]])),
+            ]
+        
+        return tpfmodel
+        
+class Gaussian_PRF:
     """Gaussian Pixel Response Function object
     
     """
@@ -174,5 +201,46 @@ class Gaussian_PRF(_PRF):
                               np.arange(self.npixels*self.prfnsamp)+0.5)
         row /= self.prfnsamp
         col /= self.prfnsamp
-        #2D Gaussian
+        #2D Gaussian, normalized to integrate to 1
         self.prf = np.exp(-(((row-x0)/(self.sigma))**2+((col-y0)/(self.sigma))**2)/2)
+        self.prf /= 2*np.pi*self.sigma**2 #normalize
+        
+    def locate(self, sourcecol, sourcerow, stampsize=(13,13), 
+             supersamplefactor = 9):
+        """Sample Gaussian PRF at location within TPF
+        
+        sourcecol (float): col position of star (relative to TPF)
+        sourcerow (float): row position of star (relative to TPF)
+        stampsize (int,int): (height,width) of TPF
+        supersamplefactor (int): interpolate supersampled before downsampling (default 9)
+        """
+        
+        #Center PRF on origin
+        prfcol = np.arange(-self.prf.shape[1]/2.+.5,self.prf.shape[1]/2.+.5)
+        prfrow = np.arange(-self.prf.shape[0]/2.+.5,self.prf.shape[0]/2.+.5)
+
+        #Convert to relative locations in TPF
+        relprfcol = prfcol/self.prfnsamp + sourcecol
+        relprfrow = prfrow/self.prfnsamp + sourcerow
+
+        #Supersample the stamp, then downsample
+        supercol = (np.arange(stampsize[1]*supersamplefactor) + 0.5) / supersamplefactor
+        superrow = (np.arange(stampsize[0]*supersamplefactor) + 0.5) / supersamplefactor
+        
+        #Interpolate PRF values onto supersampled stamp pixels
+        interppix = RectBivariateSpline(relprfrow,relprfcol,self.prf)
+        interped = interppix(superrow,supercol) #Interpolate
+
+        #Replace values outside PRF with zeros
+        interped[:,np.where(supercol < np.min(relprfcol))] = 0
+        interped[:,np.where(supercol > np.max(relprfcol))] = 0
+        interped[np.where(superrow < np.min(relprfrow)),:] = 0
+        interped[np.where(superrow > np.max(relprfrow)),:] = 0
+
+        #Downsample to TESS TPF resolution
+        output = np.zeros([int(s/supersamplefactor) for s in interped.shape])
+        for i in range(supersamplefactor):
+            for j in range(supersamplefactor):
+                output += interped[i::supersamplefactor,j::supersamplefactor]
+        output /= supersamplefactor**2.
+        return output
