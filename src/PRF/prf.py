@@ -170,10 +170,10 @@ class TESS_PRF:
         midprf = 6
         
         #That pixel should be (colint,rowint) in TPF
-        tpfmodel[int(np.max([0,rowint-midprf])):int(np.min([stampsize[1],rowint+midprf+1])),
-                 int(np.max([0,colint-midprf])):int(np.min([stampsize[0],colint+midprf+1])),] = subsampled[
-            int(np.max([0,midprf-rowint])):int(np.min([2*midprf+1,midprf-rowint+stampsize[1]])),
-            int(np.max([0,midprf-colint])):int(np.min([2*midprf+1,midprf-colint+stampsize[0]])),
+        tpfmodel[int(np.max([0,rowint-midprf])):int(np.min([stampsize[0],rowint+midprf+1])),
+                 int(np.max([0,colint-midprf])):int(np.min([stampsize[1],colint+midprf+1])),] = subsampled[
+            int(np.max([0,midprf-rowint])):int(np.min([2*midprf+1,midprf-rowint+stampsize[0]])),
+            int(np.max([0,midprf-colint])):int(np.min([2*midprf+1,midprf-colint+stampsize[1]])),
             ]
         
         return tpfmodel

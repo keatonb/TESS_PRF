@@ -8,7 +8,7 @@ with open("requirements.txt", "r") as fh:
 
 setuptools.setup(
     name="TESS_PRF",
-    version="0.1.0",
+    version="0.1.1",
     author="Keaton Bell",
     author_email="keatonbell@utexas.edu",
     description="Tools to display the TESS pixel response function (PRF) at any location on the detector",
