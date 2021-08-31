@@ -67,7 +67,9 @@ class TESS_PRF:
             filelist = [file for file in listFD(url, ext)]
         else:
             filelist = glob(os.path.join(localdatadir, subdir) + '*.fits')
-            
+        #One directory on MAST has some errant files with `phot` in filename
+        filelist = [file for file in filelist if 'phot' not in file]
+        
         cols = np.array([int(file[-9:-5]) for file in filelist])
         rows = np.array([int(file[-17:-13]) for file in filelist])
 
