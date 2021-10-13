@@ -3,7 +3,7 @@ Tools to display the TESS pixel response function (PRF) at any location on the d
 
 By default, will access the relevant [PRF files on MAST](https://heasarc.gsfc.nasa.gov/docs/tess/observing-technical.html#point-spread-function) (internet required), but you can also download these files and reference their local directory.  There is also an option to generate a 2D Gaussian PRF, however appropriate that may be.
 
-This is primarily for understanding how the light from a point source might be distributed given its position in a TESS Target Pixel File (TPF) or [TESScut](https://mast.stsci.edu/tesscut/) postage stamp. Referencing the real TESS PRF models, you'll need to provide the Camera, CCD, and Sector numbers, along with the column and row numbers at approximately the center of your TPF to interpolate a PRF appropriate for that postage stamp.  This package assumes the PRF doesn't change considerably within a small TPF.  You can then position the PRF model by passing the relative row and column location within the TPF to the "resample" method.
+This package is primarily for estimating how the light from a point source is distributed given its position in a TESS Target Pixel File (TPF) or [TESScut](https://mast.stsci.edu/tesscut/) postage stamp. Referencing the real TESS PRF models, you'll need to provide the Camera, CCD, and Sector numbers, along with the column and row numbers at approximately the center of your TPF to interpolate a PRF appropriate for that postage stamp.  This package assumes the PRF doesn't change considerably within a small TPF.  You can then position the PRF model by passing the relative row and column location within the TPF to the "resample" method. The pixel locations follow WCS convention, that an integer value corresponds to the center of a pixel.
 
 ```python
 import PRF
@@ -19,7 +19,7 @@ rownum = 298 #middle of TPF
 prf = PRF.TESS_PRF(cam,ccd,sector,colnum,rownum)
 
 # See what this looks like in the center of an 11x11 TPF
-resampled = prf.locate(5.5, 5.5, (11,11))
+resampled = prf.locate(5.0, 5.0, (11,11))
 
 plt.imshow(resampled)
 plt.show()
