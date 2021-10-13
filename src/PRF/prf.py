@@ -26,9 +26,9 @@ class TESS_PRF:
     
     """
     def __init__(self,cam,ccd,sector,colnum,rownum, localdatadir = None):
-        """Get TESS PRF for detector location, sector
+        """Get TESS PRF for detector location, sector.
         
-        Downloads relevant PRF files from the MAST archive by default
+        Downloads relevant PRF files from the MAST archive by default.
         
         ***To use pre-downloaded local files, give directory containing
         subdirectories of format "cam#_ccd#/" as localdatadir, appropriate
@@ -40,6 +40,7 @@ class TESS_PRF:
          - sector (int): TESS sector number
          - colnum (float): column number near target
          - rownum (float): row number near target
+         
         """
         self.cam,self.ccd,self.sector,self.colnum,self.rownum = cam,ccd,sector,colnum,rownum
         self.prfnsamp = 9 #samples/pixel for TESS PRFs
@@ -128,12 +129,16 @@ class TESS_PRF:
         sourcecol (float): col position of star (relative to TPF)
         sourcerow (float): row position of star (relative to TPF)
         stampsize (int,int): (height,width) of TPF
+        
+        Note: pixel positions follow the convention that integers refer to the 
+        pixel center.
         """
         #Break into integer and fractional pixel
-        colint = np.floor(sourcecol)
-        colfract = sourcecol % 1
-        rowint = np.floor(sourcerow)
-        rowfract = sourcerow % 1
+        #adding 0.5 to conform to convention
+        colint = np.floor(sourcecol+0.5)
+        colfract = (sourcecol+0.5) % 1
+        rowint = np.floor(sourcerow+0.5)
+        rowfract = (sourcerow+0.5) % 1
         
         #Sub-pixel sample locations (in each dirextion, w/ border added)
         pixelsamples = np.arange(-1/18,19.1/18,1/9)
@@ -163,6 +168,8 @@ class TESS_PRF:
                       q12 * (x2 - colfract) * ( rowfract - y1) +
                       q22 * (colfract - x1) * ( rowfract - y1)
                       ) / ((x2 - x1) * (y2 - y1) + 0.0)
+        #re-normalize to 1
+        subsampled /= np.sum(subsampled)
         
         #Now must place at correct location in TPF
         tpfmodel = np.zeros(stampsize)
@@ -218,8 +225,8 @@ class Gaussian_PRF:
         """
         
         #Center PRF on origin
-        prfcol = np.arange(-self.prf.shape[1]/2.+.5,self.prf.shape[1]/2.+.5)
-        prfrow = np.arange(-self.prf.shape[0]/2.+.5,self.prf.shape[0]/2.+.5)
+        prfcol = np.arange(-self.prf.shape[1]/2.+0.5,self.prf.shape[1]/2.+0.5)
+        prfrow = np.arange(-self.prf.shape[0]/2.+0.5,self.prf.shape[0]/2.+0.5)
 
         #Convert to relative locations in TPF
         relprfcol = prfcol/self.prfnsamp + sourcecol
